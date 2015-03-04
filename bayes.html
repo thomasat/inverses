@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>Neural network for Bayes latent state prediction </title>
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+<script src="convnet.js"></script>
+
+<script>
+
+function generateData(conditionals, prior, numSamples) {
+    var data = new Array();
+    for (var s = 0; s < numSamples; s++) {
+        var states = new Array(0, 0, 0, 0, 0);
+        var rand = Math.random();
+        if (rand < prior) {
+            states[0] = 1;
+        }
+        for (i = 1; i <= 4; i++) {
+            rand = Math.random();
+            if (rand < conditionals[i-1][states[0]]) {
+                states[i] = 1;
+            }
+        }
+        data.push(states);
+    }
+
+    /*
+    var d = "";
+    for (var i = 0; i < trainingData.length; i++) {
+        d += (" " + trainingData[i][0] + " " + trainingData[i][1] + " " + trainingData[i][2] + " " + trainingData[i][3] + " " + trainingData[i][4]);
+        d += "\n";
+    }
+
+    alert(d);
+    */
+
+    return data;
+}
+
+function trainNet(trainer, train_data) {
+    var num_one = 0.0;
+    var num_zero = 0.0
+    var dim = train_data[0].length - 1;
+
+    for(var i=0;i<train_data.length;i++) {
+      var x = new convnetjs.Vol(1,1,dim,0.0); // a 1x1x4 volume initialized to 0's.
+      for (var j = 0; j < dim; j++) {
+            x.w[j] = train_data[i][j+1];
+            x.w[j] = train_data[i][j+1];
+            x.w[j] = train_data[i][j+1];
+            x.w[j] = train_data[i][j+1];
+      }
+
+      trainer.train(x, train_data[i][0]);
+      if (train_data[i][0] == 0) {
+        num_zero++;
+      }
+      else if (train_data[i][0] == 1) {
+        num_one++;
+      }
+    }
+
+    //alert("num L=1 trained: " + num_one + "\n num L=0 trained: " + num_zero);
+
+
+}
+
+function testNet(net, test_data){
+    var correct_predictions = 0;
+    var dim = test_data[0].length - 1;
+    for (var i=0; i < test_data.length; i++) {
+      var x = new convnetjs.Vol(1,1,dim,0.0); // a 1x1x4 volume initialized to 0's.
+      for (var j = 0; j < dim; j++) {
+            x.w[j] = test_data[i][j+1];
+            x.w[j] = test_data[i][j+1];
+            x.w[j] = test_data[i][j+1];
+            x.w[j] = test_data[i][j+1];
+      }
+      var scores = net.forward(x);
+      var predicted_class = 1;
+      if (scores.w[0] > scores.w[1]) {
+            predicted_class = 0;
+      }
+      if (predicted_class == test_data[i][0]) {
+        correct_predictions++;
+      }
+      //alert(test_data[i][0] + " " + x.w[0] + " " + x.w[1] + " " + x.w[2] + " " + x.w[3] + "\n" + scores.w[0] + " " + scores.w[1]); //scores for each class
+    }
+
+    var accuracy = correct_predictions/test_data.length;
+    return accuracy;
+
+}
+
+function initializeLayers(){
+    var layer_defs = [];
+    layer_defs.push({type:'input', out_sx:1, out_sy:1, out_depth:2});
+    layer_defs.push({type:'svm', num_classes:2});
+    return layer_defs;
+}
+
+
+function start() {
+    var probs = [[0.35, 0.95], [0.15, 0.65], [0.55, 0.15], [0.78, 0.08]]; //conditional probs on L for o1 ... o4 = 1
+    var l_prior = 0.5; //prior probability that L = 1
+    var layer_defs = initializeLayers();
+    var net = new convnetjs.Net();
+    net.makeLayers(layer_defs);
+    var trainer = new convnetjs.Trainer(net, {method: 'adadelta', l2_decay: 0.001, batch_size: 10});
+    var trainingData = generateData(probs, l_prior, 10000); //use bayes net to generate posterior samples
+    var testData = generateData(probs, l_prior, 1000); //test data, generated in same way
+    trainNet(trainer, trainingData);
+    var accuracy = testNet(net, testData);
+    alert("Test Set Accuracy : " + accuracy);
+
+}
+
+
+</script>
+</head>
+<body>
+  <button onclick="start()">Convolution Test Start</button>
+  <div id="result"></div>
+</body>
+</html>
+
+
+
