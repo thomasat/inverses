@@ -11,7 +11,28 @@
 
 <script>
 
-function generateData(conditionals, prior, numSamples) {
+function generateData(conditionals, lv, numSamples) {
+    var data = new Array();
+    for (var s = 0; s < numSamples; s++) {
+        var states = new Array(0, 0, 0, 0, 0);
+        var rand = Math.random();
+        if (rand < lv) {
+            states[0] = 1;
+        }
+        for (i = 1; i <= 4; i++) {
+            rand = Math.random();
+            if (rand < conditionals[i-1][states[0]]) {
+                states[i] = 1;
+            }
+        }
+        data.push(states);
+    }
+
+    return data;
+}
+
+
+function generateDataGaussian(means, variances, l_mean, l_variance, numSamples) {
     var data = new Array();
     for (var s = 0; s < numSamples; s++) {
         var states = new Array(0, 0, 0, 0, 0);
@@ -30,6 +51,7 @@ function generateData(conditionals, prior, numSamples) {
 
     return data;
 }
+
 
 function trainNet(trainer, train_data) {
     var num_one = 0.0;
@@ -86,7 +108,7 @@ function testNet(net, test_data){
 
 }
 
-function initializeLayers(){
+function initializeClassificationLayers(){
     var layer_defs = [];
 
     layer_defs.push({type:'input', out_sx:1, out_sy:1, out_depth:2});
@@ -97,27 +119,55 @@ function initializeLayers(){
     return layer_defs;
 }
 
+function initializeRegressionLayers(){
+    var layer_defs = [];
 
-function start() {
+    layer_defs.push({type:'input', out_sx:1, out_sy:1, out_depth:1});
+    layer_defs.push({type:'fc', num_neurons:6, activation: 'tanh'});
+    layer_defs.push({type:'fc', num_neurons:2, activation: 'tanh'});
+    layer_defs.push({type:'regression', num_neurons:1});
+
+    return layer_defs;
+}
+
+
+function start_discrete() {
     var probs = [[0.35, 0.95], [0.15, 0.65], [0.55, 0.15], [0.78, 0.08]]; //conditional probs on L for o1 ... o4 = 1
-    var l_prior = 0.5; //probability that L = 1
-    var layer_defs = initializeLayers();
+    var l = 0.5; //probability that L = 1
+    var layer_defs = initializeClassificationLayers();
     var net = new convnetjs.Net();
     net.makeLayers(layer_defs);
     var trainer = new convnetjs.Trainer(net, {method: 'adadelta', l2_decay: 0.001, batch_size: 10});
-    var trainingData = generateData(probs, l_prior, 10000); //use bayes net to generate posterior samples
-    var testData = generateData(probs, l_prior, 1000); //test data, generated in same way
+    var trainingData = generateData(probs, l, 10000);
+    var testData = generateData(probs, l, 1000);
     trainNet(trainer, trainingData);
     var accuracy = testNet(net, testData);
     alert("Test Set Accuracy : " + accuracy);
 
 }
 
+function start_continuous() {
+    var means = [[0.35, 0.75], [0.15, 0.65], [0.55, 0.15], [0.78, 0.08]];
+    var variances = [[0.05, 0.15], [0.17, 0.06], [0.25, 0.15], [0.12, 0.33]];
+    var l_mean = 0.5;
+    var l_variance = 0.1;
+    var layer_defs = initializeRegressionLayers();
+    var net = new convnetjs.Net();
+    net.makeLayers(layer_defs);
+    var trainer = new convnetjs.Trainer(net, {method: 'adadelta', l2_decay: 0.001, batch_size: 10});
+    var trainingData = generateDataGaussian(means, stdevs, l_mean, l_variance, 10000); //use bayes net to generate posterior samples
+    var testData = generateDataGaussian(means, stdevs, l_mean, l_variance, 1000); //test data, generated in same way
+    trainNet(trainer, trainingData);
+    var accuracy = testNet(net, testData);
+    alert("Test Set Accuracy : " + accuracy);
+}
+
 
 </script>
 </head>
 <body>
-  <button onclick="start()">Predict latent states! </button>
+  <button onclick="start_discrete()">Predict latent states! (Discrete) </button>
+  <button onclick="start_continuous()">Predict latent states! (Continuous) </button>
   <div id="result"></div>
 </body>
 </html>
